@@ -247,13 +247,23 @@ function flattenPassageText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-/** Index of the chunk holding `quoteText`, or -1 when no chunk contains it. */
-function findChunkIndex(chunks: readonly string[], quoteText: string): number {
+/** Index of the one chunk holding `quoteText`, or -1 when no chunk contains it
+ * or more than one does. A citation carries no chunk identity of its own, so a
+ * quote repeated across chunks cannot be placed: the ambiguous case is not
+ * proof that the anchor stayed put. */
+function findSourceChunkIndex(
+  chunks: readonly string[],
+  quoteText: string,
+): number {
   const needle = flattenPassageText(quoteText);
   if (!needle) return -1;
-  return chunks.findIndex((chunk) =>
-    flattenPassageText(chunk).includes(needle),
-  );
+  let found = -1;
+  for (let chunk = 0; chunk < chunks.length; chunk++) {
+    if (!flattenPassageText(chunks[chunk]).includes(needle)) continue;
+    if (found >= 0) return -1;
+    found = chunk;
+  }
+  return found;
 }
 
 /** Passage sentences, each extended forward to the anchor length bounds. */
@@ -372,7 +382,8 @@ export function reanchorQuoteCitationsToClaims(params: {
       // section. Keep them only while the quote provably stays in its chunk.
       const leavesSourceChunk =
         chunks.length > 1 &&
-        best.candidate.chunk !== findChunkIndex(chunks, citation.quoteText);
+        best.candidate.chunk !==
+          findSourceChunkIndex(chunks, citation.quoteText);
       const rebuilt = buildQuoteCitation({
         ...citation,
         id: citation.id,

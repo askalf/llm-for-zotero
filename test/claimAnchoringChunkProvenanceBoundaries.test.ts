@@ -208,6 +208,47 @@ describe("claimAnchoring chunk provenance boundaries", function () {
     assert.isUndefined(quoteCitations[0].sourceSectionLabel);
   });
 
+  it("drops the page hint when the quote text also occurs in a later chunk", function () {
+    // The mirror of the case above, and the one an index of the first match
+    // cannot see: the citation was cut from the LATER occurrence — page 7 of
+    // the Analysis section — while the same sentence also opens chunk 3. An
+    // anchor landing in chunk 3 then agrees with the first match and reads as
+    // "never left", so page 7 would ride onto text from page 1. A quote in two
+    // chunks places the citation in neither.
+    const repeatedPassage = [
+      "[chunk 3]",
+      "## Introduction",
+      OUTER_SENTENCE,
+      SINGULARITY_SENTENCE,
+      "",
+      "[chunk 7]",
+      "## Analysis of the dissipation integral",
+      OUTER_SENTENCE,
+      METHODS_SENTENCE,
+    ].join("\n");
+
+    const { quoteCitations } = reanchor(
+      [analysisCitation("q1")],
+      repeatedPassage,
+    );
+
+    assert.include(
+      quoteCitations[0].quoteText,
+      "logarithmically singular",
+      "the anchor moves to the sentence in the Introduction chunk",
+    );
+    assert.isUndefined(
+      quoteCitations[0].pageHintIndex,
+      "page 7 must not be credited to a sentence anchored in the chunk of page 1",
+    );
+    assert.isUndefined(quoteCitations[0].pageHintLabel);
+    assert.isUndefined(
+      quoteCitations[0].sourceSectionLabel,
+      "the Analysis label must not credit a sentence under the Introduction heading",
+    );
+    assert.isUndefined(quoteCitations[0].sourceChunkKind);
+  });
+
   it("keeps the page hint when a chunk marker is written mid-line (control)", function () {
     // Controls the marker boundary the split inherits: `[chunk N]` counts only
     // as its own line, so a passage mentioning one inside a sentence is a
