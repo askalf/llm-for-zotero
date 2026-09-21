@@ -232,41 +232,64 @@ function tokenSet(text: string): Set<string> {
   );
 }
 
-type Candidate = { text: string; position: number };
+type Candidate = { text: string; position: number; chunk: number };
+
+/** The retrieved chunks a passage is made of. A passage handed to the
+ * re-anchorer is the text the model read, which `paper_read` delimits with
+ * `[chunk N]` markers when the read spanned more than one chunk. Page hints
+ * and section labels describe the chunk a quote was cut from, so the chunk a
+ * candidate belongs to has to survive the split. */
+function splitPassageChunks(passageText: string): string[] {
+  return passageText.split(CHUNK_MARKER).filter((chunk) => chunk.trim());
+}
+
+function flattenPassageText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** Index of the chunk holding `quoteText`, or -1 when no chunk contains it. */
+function findChunkIndex(chunks: readonly string[], quoteText: string): number {
+  const needle = flattenPassageText(quoteText);
+  if (!needle) return -1;
+  return chunks.findIndex((chunk) =>
+    flattenPassageText(chunk).includes(needle),
+  );
+}
 
 /** Passage sentences, each extended forward to the anchor length bounds. */
-function passageCandidates(passageText: string): Candidate[] {
-  const cleaned = passageText.replace(CHUNK_MARKER, "");
+function passageCandidates(chunks: readonly string[]): Candidate[] {
   const candidates: Candidate[] = [];
   let position = 0;
-  for (const block of cleaned.split(/\n{2,}/)) {
-    const flat = block
-      .split("\n")
-      .map((l) => l.replace(/^#{1,6}\s+/, "").trim())
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!flat) continue;
-    const sentences = splitSentences(flat);
-    for (let i = 0; i < sentences.length; i++) {
-      let text = sentences[i].text;
-      let j = i + 1;
-      while (text.length < QUOTE_ANCHOR_MIN_CHARS && j < sentences.length) {
-        const next = `${text} ${sentences[j].text}`;
-        if (next.length > QUOTE_ANCHOR_MAX_CHARS) break;
-        text = next;
-        j++;
+  for (let chunk = 0; chunk < chunks.length; chunk++) {
+    for (const block of chunks[chunk].split(/\n{2,}/)) {
+      const flat = block
+        .split("\n")
+        .map((l) => l.replace(/^#{1,6}\s+/, "").trim())
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!flat) continue;
+      const sentences = splitSentences(flat);
+      for (let i = 0; i < sentences.length; i++) {
+        let text = sentences[i].text;
+        let j = i + 1;
+        while (text.length < QUOTE_ANCHOR_MIN_CHARS && j < sentences.length) {
+          const next = `${text} ${sentences[j].text}`;
+          if (next.length > QUOTE_ANCHOR_MAX_CHARS) break;
+          text = next;
+          j++;
+        }
+        if (
+          text.length >= QUOTE_ANCHOR_MIN_CHARS &&
+          text.length <= QUOTE_ANCHOR_MAX_CHARS &&
+          !METADATA_LINE.test(text)
+        ) {
+          candidates.push({ text, position: position + i, chunk });
+        }
       }
-      if (
-        text.length >= QUOTE_ANCHOR_MIN_CHARS &&
-        text.length <= QUOTE_ANCHOR_MAX_CHARS &&
-        !METADATA_LINE.test(text)
-      ) {
-        candidates.push({ text, position: position + i });
-      }
+      position += sentences.length;
     }
-    position += sentences.length;
   }
   return candidates;
 }
@@ -312,12 +335,13 @@ export function reanchorQuoteCitationsToClaims(params: {
         return { ...citation, anchorMatch: "passage" };
       }
       if (!passage) return citation;
+      const chunks = splitPassageChunks(passage);
       const claimTokens = tokenSet(claim);
       let best:
         | { candidate: Candidate; shared: number; score: number }
         | undefined;
       if (claimTokens.size >= MIN_CLAIM_TOKENS) {
-        for (const candidate of passageCandidates(passage)) {
+        for (const candidate of passageCandidates(chunks)) {
           const tokens = tokenSet(candidate.text);
           let shared = 0;
           for (const token of claimTokens) if (tokens.has(token)) shared++;
@@ -341,6 +365,14 @@ export function reanchorQuoteCitationsToClaims(params: {
         });
         return { ...citation, anchorMatch: best ? "claim" : "passage" };
       }
+      // A page hint and a section label describe the chunk the quote was cut
+      // from. Once the anchor moves to a different chunk of the same read they
+      // point at a page and a heading the new quote does not sit under, so the
+      // reader jumps to the wrong page and the label credits the wrong
+      // section. Keep them only while the quote provably stays in its chunk.
+      const leavesSourceChunk =
+        chunks.length > 1 &&
+        best.candidate.chunk !== findChunkIndex(chunks, citation.quoteText);
       const rebuilt = buildQuoteCitation({
         ...citation,
         id: citation.id,
@@ -348,6 +380,14 @@ export function reanchorQuoteCitationsToClaims(params: {
         sourceMatchText: best.candidate.text,
         displayQuoteText: undefined,
         sourceMatchPageOccurrence: undefined,
+        ...(leavesSourceChunk
+          ? {
+              sourceSectionLabel: undefined,
+              sourceChunkKind: undefined,
+              pageHintIndex: undefined,
+              pageHintLabel: undefined,
+            }
+          : {}),
         anchorMatch: "claim",
       });
       if (!rebuilt) {
