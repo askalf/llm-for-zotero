@@ -379,6 +379,32 @@ describe("claimAnchoring chunk provenance", function () {
     );
   });
 
+  it("keeps the page hint when the passage copy of the quote is line-wrapped", function () {
+    const wrappedPassage = [
+      "[chunk 3]",
+      "## Introduction",
+      INTRO_SENTENCE,
+      "",
+      "[chunk 7]",
+      "## Analysis of the dissipation integral",
+      OUTER_SENTENCE.replace(/ /g, "\n"),
+      SINGULARITY_SENTENCE,
+    ].join("\n");
+
+    const { quoteCitations } = reanchor(
+      [analysisCitation("q1")],
+      wrappedPassage,
+    );
+
+    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
+    assert.equal(quoteCitations[0].pageHintIndex, 6);
+    assert.equal(quoteCitations[0].pageHintLabel, "7");
+    assert.equal(
+      quoteCitations[0].sourceSectionLabel,
+      "Analysis of the dissipation integral",
+    );
+  });
+
   it("keeps the page hint when a chunk marker is written mid-line", function () {
     // `[chunk N]` counts only as its own line, so this passage is one chunk.
     const inlineMarkerPassage = [
@@ -416,6 +442,49 @@ describe("claimAnchoring chunk provenance", function () {
     const { quoteCitations } = reanchor(
       [resultsCitation(ABSENT_SENTENCE)],
       singleChunkPassage,
+      RECOVERY_CLAIM,
+    );
+
+    assert.equal(
+      quoteCitations[0].quoteText,
+      "Recovery was 81% across the later sessions.",
+    );
+    assert.equal(quoteCitations[0].pageHintIndex, 4);
+    assert.equal(quoteCitations[0].pageHintLabel, "5");
+    assert.equal(quoteCitations[0].sourceSectionLabel, "Results");
+  });
+
+  it("keeps the page hint of a single-chunk read led by its marker when the snippet does not carry the quote", function () {
+    const markedSingleChunkPassage = ["[chunk 3]", singleChunkPassage].join(
+      "\n",
+    );
+
+    const { quoteCitations } = reanchor(
+      [resultsCitation(ABSENT_SENTENCE)],
+      markedSingleChunkPassage,
+      RECOVERY_CLAIM,
+    );
+
+    assert.equal(
+      quoteCitations[0].quoteText,
+      "Recovery was 81% across the later sessions.",
+    );
+    assert.equal(quoteCitations[0].pageHintIndex, 4);
+    assert.equal(quoteCitations[0].pageHintLabel, "5");
+    assert.equal(quoteCitations[0].sourceSectionLabel, "Results");
+  });
+
+  it("keeps the page hint when a blank chunk precedes the one that was read", function () {
+    const emptyChunkPassage = [
+      "[chunk 3]",
+      "   ",
+      "[chunk 4]",
+      singleChunkPassage,
+    ].join("\n");
+
+    const { quoteCitations } = reanchor(
+      [resultsCitation(ABSENT_SENTENCE)],
+      emptyChunkPassage,
       RECOVERY_CLAIM,
     );
 
