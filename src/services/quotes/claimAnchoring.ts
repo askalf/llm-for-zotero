@@ -234,11 +234,8 @@ function tokenSet(text: string): Set<string> {
 
 type Candidate = { text: string; position: number; chunk: number };
 
-/** The retrieved chunks a passage is made of. A passage handed to the
- * re-anchorer is the text the model read, which `paper_read` delimits with
- * `[chunk N]` markers when the read spanned more than one chunk. Page hints
- * and section labels describe the chunk a quote was cut from, so the chunk a
- * candidate belongs to has to survive the split. */
+/** The retrieved chunks a passage is made of, as `paper_read` delimits them
+ * with `[chunk N]` markers when a read spans more than one chunk. */
 function splitPassageChunks(passageText: string): string[] {
   return passageText.split(CHUNK_MARKER).filter((chunk) => chunk.trim());
 }
@@ -248,9 +245,7 @@ function flattenPassageText(text: string): string {
 }
 
 /** Index of the one chunk holding `quoteText`, or -1 when no chunk contains it
- * or more than one does. A citation carries no chunk identity of its own, so a
- * quote repeated across chunks cannot be placed: the ambiguous case is not
- * proof that the anchor stayed put. */
+ * or more than one does: a citation carries no chunk identity of its own. */
 function findSourceChunkIndex(
   chunks: readonly string[],
   quoteText: string,
@@ -375,11 +370,8 @@ export function reanchorQuoteCitationsToClaims(params: {
         });
         return { ...citation, anchorMatch: best ? "claim" : "passage" };
       }
-      // A page hint and a section label describe the chunk the quote was cut
-      // from. Once the anchor moves to a different chunk of the same read they
-      // point at a page and a heading the new quote does not sit under, so the
-      // reader jumps to the wrong page and the label credits the wrong
-      // section. Keep them only while the quote provably stays in its chunk.
+      // Page hints and section labels describe the chunk the quote was cut
+      // from, so they survive only while the quote provably stays in it.
       const leavesSourceChunk =
         chunks.length > 1 &&
         best.candidate.chunk !==
