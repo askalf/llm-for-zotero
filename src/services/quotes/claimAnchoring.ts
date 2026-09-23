@@ -385,6 +385,9 @@ export function reanchorQuoteCitationsToClaims(params: {
           ? {
               sourceSectionLabel: undefined,
               sourceChunkKind: undefined,
+              sourceMatchSource: citation.sourceMatchSource
+                ? "context-text"
+                : undefined,
               pageHintIndex: undefined,
               pageHintLabel: undefined,
             }

@@ -1,6 +1,10 @@
 import { assert } from "chai";
 import { reanchorQuoteCitationsToClaims } from "../src/services/quotes/claimAnchoring";
-import { buildQuoteCitation } from "../src/services/quotes/quoteCitations";
+import {
+  buildQuoteCitation,
+  buildQuoteSourceIndex,
+  resolveExactDisplayedQuoteCitation,
+} from "../src/services/quotes/quoteCitations";
 import { resolveQuoteCitationPageHintForTests } from "../src/modules/contextPanel/assistantCitationLinks";
 import type { QuoteCitation } from "../src/shared/types";
 
@@ -14,6 +18,8 @@ const METHODS_SENTENCE =
   "Samples were prepared under vacuum and annealed for six hours before measurement.";
 const ABSENT_SENTENCE =
   "A short-time existence result closes the section on the weak formulation.";
+const SHORT_ANCHOR_SENTENCE =
+  "Photoluminescence spectroscopy characterisation confirmed superparamagnetism.";
 const RECOVERY_SENTENCE = "Recovery was 81% across the later sessions.";
 const WASHOUT_SENTENCE =
   "The treatment group recovered after washout to the same level as sham animals in the later sessions.";
@@ -93,6 +99,17 @@ const twoChunkPassage = [
   "## Analysis of the dissipation integral",
   OUTER_SENTENCE,
   SINGULARITY_SENTENCE,
+].join("\n");
+
+const shortAnchorPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  INTRO_SENTENCE,
+  "",
+  "[chunk 7]",
+  OUTER_SENTENCE,
+  "",
+  SHORT_ANCHOR_SENTENCE,
 ].join("\n");
 
 const threeChunkPassage = [
@@ -452,6 +469,7 @@ describe("claimAnchoring chunk provenance", function () {
       assert.equal(quoteCitations[0].pageHintIndex, pageHintIndex);
       assert.equal(quoteCitations[0].pageHintLabel, pageHintLabel);
       assert.equal(quoteCitations[0].sourceSectionLabel, sourceSectionLabel);
+      assert.equal(quoteCitations[0].sourceMatchSource, "pdf-page-text");
     });
   }
 
@@ -484,5 +502,75 @@ describe("claimAnchoring chunk provenance", function () {
       first.quoteCitations[0].quoteText,
       second.quoteCitations[0].quoteText,
     );
+  });
+
+  it("binds the re-anchored quote as context text without a page", function () {
+    const { quoteCitations } = reanchor([introCitation()], twoChunkPassage);
+    const bound = resolveExactDisplayedQuoteCitation({
+      quoteText: SINGULARITY_SENTENCE,
+      citationLabel: "Orion, 2025",
+      sourceIndex: buildQuoteSourceIndex({ quoteCitations }),
+      preferredContextItemId: 11,
+    });
+
+    assert.equal(quoteCitations[0].sourceMatchSource, "context-text");
+    assert.exists(bound);
+    assert.equal(bound!.sourceMatchSource, "context-text");
+    assert.isUndefined(bound!.pageHintIndex);
+  });
+
+  it("keeps the passage quote when the anchor in another chunk is too short to stand without a page", function () {
+    const { quoteCitations, decisions } = reanchor(
+      [introCitation()],
+      shortAnchorPassage,
+      "Photoluminescence characterisation confirmed superparamagnetism in the sample. [[quote:q1]]",
+    );
+
+    assert.equal(quoteCitations[0].quoteText, INTRO_SENTENCE);
+    assert.equal(quoteCitations[0].pageHintIndex, 0);
+    assert.equal(quoteCitations[0].anchorMatch, "passage");
+    assert.equal(decisions[0].match, "passage");
+  });
+
+  it("re-anchors a citation with no match source to a short anchor in another chunk", function () {
+    const citation = buildQuoteCitation({
+      id: "q1",
+      quoteText: INTRO_SENTENCE,
+      citationLabel: "Orion, 2025",
+      sourceSectionLabel: "Introduction",
+      contextItemId: 11,
+      pageHintIndex: 0,
+      pageHintLabel: "1",
+    })!;
+    const { quoteCitations, decisions } = reanchor(
+      [citation],
+      shortAnchorPassage,
+      "Photoluminescence characterisation confirmed superparamagnetism in the sample. [[quote:q1]]",
+    );
+
+    assert.equal(quoteCitations[0].quoteText, SHORT_ANCHOR_SENTENCE);
+    assert.isUndefined(quoteCitations[0].sourceMatchSource);
+    assert.isUndefined(quoteCitations[0].pageHintIndex);
+    assert.equal(decisions[0].match, "claim");
+  });
+
+  it("keeps a context-text citation as context text when the anchor leaves its chunk", function () {
+    const citation = buildQuoteCitation({
+      id: "q1",
+      quoteText: INTRO_SENTENCE,
+      citationLabel: "Orion, 2025",
+      sourceMatchKind: "trusted",
+      sourceMatchSource: "context-text",
+      sourceSectionLabel: "Introduction",
+      sourceChunkKind: "body",
+      contextItemId: 11,
+      itemId: 11,
+    })!;
+    const { quoteCitations } = reanchor([citation], twoChunkPassage);
+
+    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
+    assert.equal(quoteCitations[0].sourceMatchSource, "context-text");
+    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
+    assert.isUndefined(quoteCitations[0].sourceChunkKind);
   });
 });
