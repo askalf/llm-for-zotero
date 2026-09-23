@@ -370,8 +370,6 @@ export function reanchorQuoteCitationsToClaims(params: {
         });
         return { ...citation, anchorMatch: best ? "claim" : "passage" };
       }
-      // Page hints and section labels describe the chunk the quote was cut
-      // from, so they survive only while the quote provably stays in it.
       const leavesSourceChunk =
         chunks.length > 1 &&
         best.candidate.chunk !==

@@ -14,8 +14,13 @@ const METHODS_SENTENCE =
   "Samples were prepared under vacuum and annealed for six hours before measurement.";
 const ABSENT_SENTENCE =
   "A short-time existence result closes the section on the weak formulation.";
+const RECOVERY_SENTENCE = "Recovery was 81% across the later sessions.";
+const WASHOUT_SENTENCE =
+  "The treatment group recovered after washout to the same level as sham animals in the later sessions.";
 const SINGULARITY_CLAIM =
   "The pressure gradient is singular at the contact line because the viscous dissipation integral diverges logarithmically. [[quote:q1]]";
+const RECOVERY_CLAIM =
+  "After washout recovery was 81% across the later sessions [[quote:q1]].";
 
 function introCitation(id = "q1"): QuoteCitation {
   return buildQuoteCitation({
@@ -71,6 +76,14 @@ function resultsCitation(quoteText: string): QuoteCitation {
   })!;
 }
 
+function absentQuoteCitation(): QuoteCitation {
+  return buildQuoteCitation({
+    ...introCitation(),
+    quoteText: ABSENT_SENTENCE,
+    sourceMatchText: ABSENT_SENTENCE,
+  })!;
+}
+
 const twoChunkPassage = [
   "[chunk 3]",
   "## Introduction",
@@ -82,13 +95,115 @@ const twoChunkPassage = [
   SINGULARITY_SENTENCE,
 ].join("\n");
 
-const singleChunkPassage = [
-  "Recovery was 81% across the later sessions.",
-  "The treatment group recovered after washout to the same level as sham animals in the later sessions.",
+const threeChunkPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  INTRO_SENTENCE,
+  "",
+  "[chunk 5]",
+  "## Methods",
+  METHODS_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  OUTER_SENTENCE,
+  SINGULARITY_SENTENCE,
 ].join("\n");
 
-const RECOVERY_CLAIM =
-  "After washout recovery was 81% across the later sessions [[quote:q1]].";
+const quoteAlsoInEarlierChunkPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  OUTER_SENTENCE,
+  INTRO_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  OUTER_SENTENCE,
+  SINGULARITY_SENTENCE,
+].join("\n");
+
+const quoteAlsoInLaterChunkPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  OUTER_SENTENCE,
+  SINGULARITY_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  OUTER_SENTENCE,
+  METHODS_SENTENCE,
+].join("\n");
+
+const quoteInThreeChunksPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  INTRO_SENTENCE,
+  SINGULARITY_SENTENCE,
+  "",
+  "[chunk 5]",
+  "## Methods",
+  INTRO_SENTENCE,
+  METHODS_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  INTRO_SENTENCE,
+  OUTER_SENTENCE,
+].join("\n");
+
+const quoteDuplicatedAcrossAnchorChunkPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  INTRO_SENTENCE,
+  SINGULARITY_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  INTRO_SENTENCE,
+  OUTER_SENTENCE,
+].join("\n");
+
+const anchorDuplicatedPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  INTRO_SENTENCE,
+  SINGULARITY_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  OUTER_SENTENCE,
+  SINGULARITY_SENTENCE,
+].join("\n");
+
+const wrappedPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  INTRO_SENTENCE,
+  "",
+  "[chunk 7]",
+  "## Analysis of the dissipation integral",
+  OUTER_SENTENCE.replace(/ /g, "\n"),
+  SINGULARITY_SENTENCE,
+].join("\n");
+
+const inlineMarkerPassage = [
+  "[chunk 3]",
+  "## Introduction",
+  `${INTRO_SENTENCE} [chunk 7] ${SINGULARITY_SENTENCE}`,
+].join("\n");
+
+const singleChunkPassage = [RECOVERY_SENTENCE, WASHOUT_SENTENCE].join("\n");
+
+const markedSingleChunkPassage = ["[chunk 3]", singleChunkPassage].join("\n");
+
+const blankFirstChunkPassage = [
+  "[chunk 3]",
+  "   ",
+  "[chunk 4]",
+  singleChunkPassage,
+].join("\n");
+
+const markersOnlyPassage = ["[chunk 3]", "", "[chunk 7]", ""].join("\n");
 
 function reanchor(
   citations: QuoteCitation[],
@@ -105,6 +220,145 @@ function reanchor(
     passageTextByCitationId,
   });
 }
+
+const unprovableSourceCases: {
+  name: string;
+  citation: QuoteCitation;
+  passage: string;
+}[] = [
+  {
+    name: "the quote is in no chunk of the passage",
+    citation: absentQuoteCitation(),
+    passage: twoChunkPassage,
+  },
+  {
+    name: "the anchor skips a chunk of a three-chunk read",
+    citation: introCitation(),
+    passage: threeChunkPassage,
+  },
+  {
+    name: "the quote text also occurs in an earlier chunk",
+    citation: analysisCitation("q1"),
+    passage: quoteAlsoInEarlierChunkPassage,
+  },
+  {
+    name: "the quote text also occurs in a later chunk",
+    citation: analysisCitation("q1"),
+    passage: quoteAlsoInLaterChunkPassage,
+  },
+  {
+    name: "the quote text occurs in three chunks of the read",
+    citation: introCitation(),
+    passage: quoteInThreeChunksPassage,
+  },
+  {
+    name: "the quote is duplicated and the anchor stays in its own chunk",
+    citation: introCitation(),
+    passage: quoteDuplicatedAcrossAnchorChunkPassage,
+  },
+];
+
+const provenSourceCases: {
+  name: string;
+  citation: QuoteCitation;
+  passage: string;
+  claim: string;
+  anchor: string;
+  pageHintIndex: number;
+  pageHintLabel: string;
+  sourceSectionLabel: string;
+}[] = [
+  {
+    name: "the anchor stays inside its own chunk",
+    citation: analysisCitation("q1"),
+    passage: twoChunkPassage,
+    claim: SINGULARITY_CLAIM,
+    anchor: "logarithmically singular",
+    pageHintIndex: 6,
+    pageHintLabel: "7",
+    sourceSectionLabel: "Analysis of the dissipation integral",
+  },
+  {
+    name: "only the anchor sentence is duplicated",
+    citation: introCitation(),
+    passage: anchorDuplicatedPassage,
+    claim: SINGULARITY_CLAIM,
+    anchor: "logarithmically singular",
+    pageHintIndex: 0,
+    pageHintLabel: "1",
+    sourceSectionLabel: "Introduction",
+  },
+  {
+    name: "the quote is line-wrapped and the passage copy is not",
+    citation: analysisCitation("q1", OUTER_SENTENCE.replace(/ /g, "\n")),
+    passage: twoChunkPassage,
+    claim: SINGULARITY_CLAIM,
+    anchor: "logarithmically singular",
+    pageHintIndex: 6,
+    pageHintLabel: "7",
+    sourceSectionLabel: "Analysis of the dissipation integral",
+  },
+  {
+    name: "the passage copy of the quote is line-wrapped",
+    citation: analysisCitation("q1"),
+    passage: wrappedPassage,
+    claim: SINGULARITY_CLAIM,
+    anchor: "logarithmically singular",
+    pageHintIndex: 6,
+    pageHintLabel: "7",
+    sourceSectionLabel: "Analysis of the dissipation integral",
+  },
+  {
+    name: "a chunk marker is written mid-line",
+    citation: introCitation(),
+    passage: inlineMarkerPassage,
+    claim: SINGULARITY_CLAIM,
+    anchor: "logarithmically singular",
+    pageHintIndex: 0,
+    pageHintLabel: "1",
+    sourceSectionLabel: "Introduction",
+  },
+  {
+    name: "the passage carries no chunk marker",
+    citation: resultsCitation(WASHOUT_SENTENCE),
+    passage: singleChunkPassage,
+    claim: RECOVERY_CLAIM,
+    anchor: RECOVERY_SENTENCE,
+    pageHintIndex: 4,
+    pageHintLabel: "5",
+    sourceSectionLabel: "Results",
+  },
+  {
+    name: "an unmarked single-chunk snippet does not carry the quote",
+    citation: resultsCitation(ABSENT_SENTENCE),
+    passage: singleChunkPassage,
+    claim: RECOVERY_CLAIM,
+    anchor: RECOVERY_SENTENCE,
+    pageHintIndex: 4,
+    pageHintLabel: "5",
+    sourceSectionLabel: "Results",
+  },
+  {
+    name: "a marker-led single-chunk snippet does not carry the quote",
+    citation: resultsCitation(ABSENT_SENTENCE),
+    passage: markedSingleChunkPassage,
+    claim: RECOVERY_CLAIM,
+    anchor: RECOVERY_SENTENCE,
+    pageHintIndex: 4,
+    pageHintLabel: "5",
+    sourceSectionLabel: "Results",
+  },
+  {
+    name: "a blank chunk precedes the one that was read",
+    citation: resultsCitation(ABSENT_SENTENCE),
+    passage: blankFirstChunkPassage,
+    claim: RECOVERY_CLAIM,
+    anchor: RECOVERY_SENTENCE,
+    pageHintIndex: 4,
+    pageHintLabel: "5",
+    sourceSectionLabel: "Results",
+  },
+];
 
 describe("claimAnchoring chunk provenance", function () {
   it("drops the page hint and section label when the anchor moves to another chunk", function () {
@@ -139,50 +393,17 @@ describe("claimAnchoring chunk provenance", function () {
     assert.isNull(resolveQuoteCitationPageHintForTests(quoteCitations[0]));
   });
 
-  it("drops the page hint when the original quote is in no chunk of the passage", function () {
-    // The collector bounds a passage at 8000 characters, so the sentence a
-    // citation was cut from can be missing from the text handed back.
-    const { quoteCitations } = reanchor(
-      [
-        buildQuoteCitation({
-          ...introCitation(),
-          quoteText: ABSENT_SENTENCE,
-          sourceMatchText: ABSENT_SENTENCE,
-        })!,
-      ],
-      twoChunkPassage,
-    );
+  for (const { name, citation, passage } of unprovableSourceCases) {
+    it(`drops the provenance when ${name}`, function () {
+      const { quoteCitations } = reanchor([citation], passage);
 
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
-    assert.isUndefined(quoteCitations[0].pageHintIndex);
-    assert.isUndefined(quoteCitations[0].pageHintLabel);
-  });
-
-  it("drops the page hint when the anchor skips a chunk of a three-chunk read", function () {
-    const threeChunkPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      INTRO_SENTENCE,
-      "",
-      "[chunk 5]",
-      "## Methods",
-      METHODS_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      OUTER_SENTENCE,
-      SINGULARITY_SENTENCE,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor([introCitation()], threeChunkPassage);
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.isUndefined(quoteCitations[0].pageHintIndex);
-    assert.isUndefined(quoteCitations[0].pageHintLabel);
-    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
-    assert.isUndefined(quoteCitations[0].sourceChunkKind);
-  });
+      assert.include(quoteCitations[0].quoteText, "logarithmically singular");
+      assert.isUndefined(quoteCitations[0].pageHintIndex);
+      assert.isUndefined(quoteCitations[0].pageHintLabel);
+      assert.isUndefined(quoteCitations[0].sourceSectionLabel);
+      assert.isUndefined(quoteCitations[0].sourceChunkKind);
+    });
+  }
 
   it("drops the provenance of the crossing citation only, whichever order the citations arrive in", function () {
     const answer = [
@@ -214,292 +435,27 @@ describe("claimAnchoring chunk provenance", function () {
     }
   });
 
-  it("drops the page hint when the quote text also occurs in an earlier chunk", function () {
-    const repeatedPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      OUTER_SENTENCE,
-      INTRO_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      OUTER_SENTENCE,
-      SINGULARITY_SENTENCE,
-    ].join("\n");
+  for (const {
+    name,
+    citation,
+    passage,
+    claim,
+    anchor,
+    pageHintIndex,
+    pageHintLabel,
+    sourceSectionLabel,
+  } of provenSourceCases) {
+    it(`keeps the provenance when ${name}`, function () {
+      const { quoteCitations } = reanchor([citation], passage, claim);
 
-    const { quoteCitations } = reanchor(
-      [analysisCitation("q1")],
-      repeatedPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.isUndefined(quoteCitations[0].pageHintIndex);
-    assert.isUndefined(quoteCitations[0].pageHintLabel);
-    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
-  });
-
-  it("drops the page hint when the quote text also occurs in a later chunk", function () {
-    // The citation was cut from the later occurrence, on page 7, while the same
-    // sentence opens chunk 3. The anchor lands in chunk 3, where an index of
-    // the first occurrence would agree and carry page 7 onto text from page 1.
-    const repeatedPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      OUTER_SENTENCE,
-      SINGULARITY_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      OUTER_SENTENCE,
-      METHODS_SENTENCE,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor(
-      [analysisCitation("q1")],
-      repeatedPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.isUndefined(quoteCitations[0].pageHintIndex);
-    assert.isUndefined(quoteCitations[0].pageHintLabel);
-    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
-    assert.isUndefined(quoteCitations[0].sourceChunkKind);
-  });
-
-  it("drops the page hint when the quote text occurs in three chunks of the read", function () {
-    const threeDuplicatePassage = [
-      "[chunk 3]",
-      "## Introduction",
-      INTRO_SENTENCE,
-      SINGULARITY_SENTENCE,
-      "",
-      "[chunk 5]",
-      "## Methods",
-      INTRO_SENTENCE,
-      METHODS_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      INTRO_SENTENCE,
-      OUTER_SENTENCE,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor(
-      [introCitation()],
-      threeDuplicatePassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.isUndefined(quoteCitations[0].pageHintIndex);
-    assert.isUndefined(quoteCitations[0].pageHintLabel);
-    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
-    assert.isUndefined(quoteCitations[0].sourceChunkKind);
-  });
-
-  it("drops the page hint of an ambiguous quote even when the anchor stays in its own chunk", function () {
-    // The citation was cut from chunk 0 and the anchor lands in chunk 0, but
-    // the same sentence also sits in chunk 1, so nothing places the citation.
-    const duplicateWithinChunkPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      INTRO_SENTENCE,
-      SINGULARITY_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      INTRO_SENTENCE,
-      OUTER_SENTENCE,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor(
-      [introCitation()],
-      duplicateWithinChunkPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.isUndefined(quoteCitations[0].pageHintIndex);
-    assert.isUndefined(quoteCitations[0].sourceSectionLabel);
-  });
-
-  it("keeps the page hint when only the anchor sentence is duplicated", function () {
-    // The lookup searches for the quote the citation was cut from, never for
-    // the sentence the anchor lands on, so this passage is unambiguous.
-    const duplicateAnchorPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      INTRO_SENTENCE,
-      SINGULARITY_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      OUTER_SENTENCE,
-      SINGULARITY_SENTENCE,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor(
-      [introCitation()],
-      duplicateAnchorPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.equal(quoteCitations[0].pageHintIndex, 0);
-    assert.equal(quoteCitations[0].pageHintLabel, "1");
-    assert.equal(quoteCitations[0].sourceSectionLabel, "Introduction");
-  });
-
-  it("keeps the page hint when the anchor stays inside its own chunk", function () {
-    const { quoteCitations } = reanchor(
-      [analysisCitation("q1")],
-      twoChunkPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.equal(quoteCitations[0].pageHintIndex, 6);
-    assert.equal(quoteCitations[0].pageHintLabel, "7");
-    assert.equal(
-      quoteCitations[0].sourceSectionLabel,
-      "Analysis of the dissipation integral",
-    );
-  });
-
-  it("keeps the page hint when a line-wrapped quote sits in its own chunk", function () {
-    // PDF extraction wraps a sentence over several lines while the passage copy
-    // uses single spaces, so the lookup compares flattened text.
-    const { quoteCitations } = reanchor(
-      [analysisCitation("q1", OUTER_SENTENCE.replace(/ /g, "\n"))],
-      twoChunkPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.equal(quoteCitations[0].pageHintIndex, 6);
-    assert.equal(quoteCitations[0].pageHintLabel, "7");
-    assert.equal(
-      quoteCitations[0].sourceSectionLabel,
-      "Analysis of the dissipation integral",
-    );
-  });
-
-  it("keeps the page hint when the passage copy of the quote is line-wrapped", function () {
-    const wrappedPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      INTRO_SENTENCE,
-      "",
-      "[chunk 7]",
-      "## Analysis of the dissipation integral",
-      OUTER_SENTENCE.replace(/ /g, "\n"),
-      SINGULARITY_SENTENCE,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor(
-      [analysisCitation("q1")],
-      wrappedPassage,
-    );
-
-    assert.include(quoteCitations[0].quoteText, "logarithmically singular");
-    assert.equal(quoteCitations[0].pageHintIndex, 6);
-    assert.equal(quoteCitations[0].pageHintLabel, "7");
-    assert.equal(
-      quoteCitations[0].sourceSectionLabel,
-      "Analysis of the dissipation integral",
-    );
-  });
-
-  it("keeps the page hint when a chunk marker is written mid-line", function () {
-    // `[chunk N]` counts only as its own line, so this passage is one chunk.
-    const inlineMarkerPassage = [
-      "[chunk 3]",
-      "## Introduction",
-      `${INTRO_SENTENCE} [chunk 7] ${SINGULARITY_SENTENCE}`,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor([introCitation()], inlineMarkerPassage);
-
-    assert.equal(quoteCitations[0].pageHintIndex, 0);
-    assert.equal(quoteCitations[0].pageHintLabel, "1");
-    assert.equal(quoteCitations[0].sourceSectionLabel, "Introduction");
-  });
-
-  it("keeps the page hint of a passage with no chunk markers", function () {
-    const { quoteCitations } = reanchor(
-      [
-        resultsCitation(
-          "The treatment group recovered after washout to the same level as sham animals in the later sessions.",
-        ),
-      ],
-      singleChunkPassage,
-      RECOVERY_CLAIM,
-    );
-
-    assert.equal(quoteCitations[0].pageHintIndex, 4);
-    assert.equal(quoteCitations[0].pageHintLabel, "5");
-    assert.equal(quoteCitations[0].sourceSectionLabel, "Results");
-  });
-
-  it("keeps the page hint of a single-chunk read whose snippet does not carry the quote", function () {
-    // A bounded retrieval window with no marker: the lookup can only answer
-    // "unprovable", and a read of one chunk has no other chunk to cross into.
-    const { quoteCitations } = reanchor(
-      [resultsCitation(ABSENT_SENTENCE)],
-      singleChunkPassage,
-      RECOVERY_CLAIM,
-    );
-
-    assert.equal(
-      quoteCitations[0].quoteText,
-      "Recovery was 81% across the later sessions.",
-    );
-    assert.equal(quoteCitations[0].pageHintIndex, 4);
-    assert.equal(quoteCitations[0].pageHintLabel, "5");
-    assert.equal(quoteCitations[0].sourceSectionLabel, "Results");
-  });
-
-  it("keeps the page hint of a single-chunk read led by its marker when the snippet does not carry the quote", function () {
-    const markedSingleChunkPassage = ["[chunk 3]", singleChunkPassage].join(
-      "\n",
-    );
-
-    const { quoteCitations } = reanchor(
-      [resultsCitation(ABSENT_SENTENCE)],
-      markedSingleChunkPassage,
-      RECOVERY_CLAIM,
-    );
-
-    assert.equal(
-      quoteCitations[0].quoteText,
-      "Recovery was 81% across the later sessions.",
-    );
-    assert.equal(quoteCitations[0].pageHintIndex, 4);
-    assert.equal(quoteCitations[0].pageHintLabel, "5");
-    assert.equal(quoteCitations[0].sourceSectionLabel, "Results");
-  });
-
-  it("keeps the page hint when a blank chunk precedes the one that was read", function () {
-    const emptyChunkPassage = [
-      "[chunk 3]",
-      "   ",
-      "[chunk 4]",
-      singleChunkPassage,
-    ].join("\n");
-
-    const { quoteCitations } = reanchor(
-      [resultsCitation(ABSENT_SENTENCE)],
-      emptyChunkPassage,
-      RECOVERY_CLAIM,
-    );
-
-    assert.equal(
-      quoteCitations[0].quoteText,
-      "Recovery was 81% across the later sessions.",
-    );
-    assert.equal(quoteCitations[0].pageHintIndex, 4);
-    assert.equal(quoteCitations[0].pageHintLabel, "5");
-    assert.equal(quoteCitations[0].sourceSectionLabel, "Results");
-  });
+      assert.include(quoteCitations[0].quoteText, anchor);
+      assert.equal(quoteCitations[0].pageHintIndex, pageHintIndex);
+      assert.equal(quoteCitations[0].pageHintLabel, pageHintLabel);
+      assert.equal(quoteCitations[0].sourceSectionLabel, sourceSectionLabel);
+    });
+  }
 
   it("leaves the citation untouched for a passage of chunk markers alone", function () {
-    const markersOnlyPassage = ["[chunk 3]", "", "[chunk 7]", ""].join("\n");
-
     const { quoteCitations, decisions } = reanchor(
       [introCitation()],
       markersOnlyPassage,
@@ -513,7 +469,6 @@ describe("claimAnchoring chunk provenance", function () {
   });
 
   it("reaches the same verdict when the same passage is re-anchored twice", function () {
-    // The marker pattern is a /g regex, which carries a lastIndex between uses.
     const first = reanchor([introCitation()], twoChunkPassage);
     const second = reanchor([introCitation()], twoChunkPassage);
 
